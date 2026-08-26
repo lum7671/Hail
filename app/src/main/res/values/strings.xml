@@ -154,4 +154,11 @@
     <string name="follow_system">Follow system</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="title_backup_restore">Backup &amp; Restore</string>
+    <string name="action_export_backup">Export Backup</string>
+    <string name="action_import_backup">Restore Backup</string>
+    <string name="msg_backup_success">Backup completed (%s apps)</string>
+    <string name="msg_restore_success">Restored %s apps successfully</string>
+    <string name="action_add_app">Add to managed list</string>
+    <string name="action_remove_app">Remove from managed list</string>
 </resources>

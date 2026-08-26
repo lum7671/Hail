@@ -67,6 +67,11 @@ class ApiActivity : ComponentActivity() {
             HailApi.ACTION_FREEZE_AUTO -> setAutoFreeze(false)
             HailApi.ACTION_LOCK -> lockScreen(false)
             HailApi.ACTION_LOCK_FREEZE -> lockScreen(true)
+
+            HailApi.ACTION_ADD_APP -> addSingleApp()
+            HailApi.ACTION_REMOVE_APP -> removeSingleApp()
+            HailApi.ACTION_ADD_APPS -> addMultipleApps()
+
             else -> throw IllegalArgumentException("Unknown action:\n$action")
         }
         return true
@@ -86,6 +91,9 @@ class ApiActivity : ComponentActivity() {
      * hail://freeze_auto
      * hail://lock
      * hail://lock_freeze
+     * hail://add?package=xxx&tag=xxx&freeze=true
+     * hail://remove?package=xxx
+     * hail://add_all?packages=xxx,yyy&tag=xxx&freeze=true
      */
     private fun handleSchema(uri: Uri?): Boolean {
         if (uri?.scheme != "hail") throw IllegalArgumentException("Unknown scheme:\n${uri?.scheme}")
@@ -102,6 +110,9 @@ class ApiActivity : ComponentActivity() {
                 "freeze_auto" -> HailApi.ACTION_FREEZE_AUTO
                 "lock" -> HailApi.ACTION_LOCK
                 "lock_freeze" -> HailApi.ACTION_LOCK_FREEZE
+                "add" -> HailApi.ACTION_ADD_APP
+                "remove" -> HailApi.ACTION_REMOVE_APP
+                "add_all", "add_apps" -> HailApi.ACTION_ADD_APPS
                 else -> throw IllegalArgumentException("Unknown host:\n${uri.host}")
             }
         )
@@ -200,18 +211,86 @@ class ApiActivity : ComponentActivity() {
         } ?: throw ActivityNotFoundException(getString(R.string.activity_not_found))
     }
 
-    private fun setAppFrozen(pkg: String, frozen: Boolean) = when {
-        frozen && !HailData.isChecked(pkg) -> throw SecurityException("Package not checked")
-        AppManager.isAppFrozen(pkg) != frozen && !AppManager.setAppFrozen(
-            pkg, frozen
-        ) -> throw IllegalStateException(getString(R.string.permission_denied))
+    private fun addSingleApp() {
+        val pkg = requirePackage
+        val tagStr = intent.run {
+            if (action == Intent.ACTION_VIEW) data?.getQueryParameter(HailData.KEY_TAG)
+            else getStringExtra(HailData.KEY_TAG)
+        }
+        val shouldFreeze = intent.run {
+            if (action == Intent.ACTION_VIEW) data?.getQueryParameter("freeze")?.toBooleanStrictOrNull() ?: false
+            else getBooleanExtra("freeze", false)
+        }
+        val tagsList = if (tagStr.isNullOrBlank()) emptyList() else listOf(tagStr)
+        HailData.addCheckedAppWithTags(pkg, tagsList, saveApps = true)
+        HUI.showToast(
+            R.string.action_add_app,
+            HPackages.getApplicationInfoOrNull(pkg)?.loadLabel(packageManager) ?: pkg
+        )
+        if (shouldFreeze) setAppFrozen(pkg, true)
+    }
 
-        else -> {
-            HUI.showToast(
-                if (frozen) R.string.msg_freeze else R.string.msg_unfreeze,
-                HPackages.getApplicationInfoOrNull(pkg)?.loadLabel(packageManager) ?: pkg
-            )
-            app.setAutoFreezeService()
+    private fun removeSingleApp() {
+        val pkg = requirePackage
+        HailData.removeCheckedApp(pkg, saveApps = true)
+        HUI.showToast(
+            R.string.action_remove_app,
+            HPackages.getApplicationInfoOrNull(pkg)?.loadLabel(packageManager) ?: pkg
+        )
+    }
+
+    private fun addMultipleApps() {
+        val pkgsStr = intent.run {
+            if (action == Intent.ACTION_VIEW) data?.getQueryParameter("packages")
+            else getStringExtra("packages")
+        } ?: intent.getStringArrayExtra("packages")?.joinToString(",") ?: ""
+        val tagStr = intent.run {
+            if (action == Intent.ACTION_VIEW) data?.getQueryParameter(HailData.KEY_TAG)
+            else getStringExtra(HailData.KEY_TAG)
+        }
+        val shouldFreeze = intent.run {
+            if (action == Intent.ACTION_VIEW) data?.getQueryParameter("freeze")?.toBooleanStrictOrNull() ?: false
+            else getBooleanExtra("freeze", false)
+        }
+        val tagsList = if (tagStr.isNullOrBlank()) emptyList() else listOf(tagStr)
+        var count = 0
+        pkgsStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { p ->
+            if (HPackages.getApplicationInfoOrNull(p) != null) {
+                HailData.addCheckedAppWithTags(p, tagsList, saveApps = false)
+                count++
+            }
+        }
+        if (count > 0) {
+            HailData.saveApps()
+            HailData.saveTags()
+            HUI.showToast(R.string.msg_imported, count.toString())
+            if (shouldFreeze) {
+                if (tagsList.isNotEmpty()) {
+                    val tagId = HailData.getOrCreateTagId(tagsList[0])
+                    setListFrozen(true, HailData.checkedList.filter { tagId in it.tagIdList })
+                } else {
+                    setListFrozen(true)
+                }
+            }
+        }
+    }
+
+    private fun setAppFrozen(pkg: String, frozen: Boolean) {
+        if (frozen && !HailData.isChecked(pkg)) {
+            HailData.addCheckedApp(pkg, saveApps = true)
+        }
+        when {
+            AppManager.isAppFrozen(pkg) != frozen && !AppManager.setAppFrozen(
+                pkg, frozen
+            ) -> throw IllegalStateException(getString(R.string.permission_denied))
+
+            else -> {
+                HUI.showToast(
+                    if (frozen) R.string.msg_freeze else R.string.msg_unfreeze,
+                    HPackages.getApplicationInfoOrNull(pkg)?.loadLabel(packageManager) ?: pkg
+                )
+                app.setAutoFreezeService()
+            }
         }
     }
 

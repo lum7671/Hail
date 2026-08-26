@@ -38,6 +38,11 @@ object HailApi {
     /** @since 0.6.0 */
     const val ACTION_LOCK_FREEZE = "${BuildConfig.APPLICATION_ID}.action.LOCK_FREEZE"
 
+    /** @since 1.4.0 - Dynamic App Management API */
+    const val ACTION_ADD_APP = "${BuildConfig.APPLICATION_ID}.action.ADD_APP"
+    const val ACTION_REMOVE_APP = "${BuildConfig.APPLICATION_ID}.action.REMOVE_APP"
+    const val ACTION_ADD_APPS = "${BuildConfig.APPLICATION_ID}.action.ADD_APPS"
+
     fun getIntentForPackage(action: String, packageName: String) =
         Intent(action).putExtra(HailData.KEY_PACKAGE, packageName)
 

@@ -502,37 +502,48 @@ class PagerFragment : MainFragment(), PagerAdapter.OnItemClickListener, PagerAda
     }
 
     private fun exportToClipboard(list: List<AppInfo>) {
-        if (list.isEmpty()) return
-        HUI.copyText(if (list.size > 1) JSONArray().run {
-            list.forEach { put(it.packageName) }
-            toString()
-        } else list[0].packageName)
-        HUI.showToast(
-            R.string.msg_exported, if (list.size > 1) list.size.toString() else list[0].name
-        )
+        if (list == HailData.checkedList) {
+            HUI.copyText(HailData.exportBackupJson())
+            HUI.showToast(R.string.msg_exported, list.size.toString())
+        } else {
+            if (list.isEmpty()) return
+            HUI.copyText(if (list.size > 1) JSONArray().run {
+                list.forEach { put(it.packageName) }
+                toString()
+            } else list[0].packageName)
+            HUI.showToast(
+                R.string.msg_exported, if (list.size > 1) list.size.toString() else list[0].name
+            )
+        }
     }
 
     private fun importFromClipboard() = runCatching {
         val str = HUI.pasteText() ?: throw IllegalArgumentException()
-        val json = if (str.contains('[')) JSONArray(
-            str.substring(
-                str.indexOf('[')..str.indexOf(']', str.indexOf('['))
-            )
-        )
-        else JSONArray().put(str)
-        var i = 0
-        for (index in 0 until json.length()) {
-            val pkg = json.getString(index)
-            if (HPackages.getApplicationInfoOrNull(pkg) != null && !HailData.isChecked(pkg)) {
-                HailData.addCheckedApp(pkg, tag?.second ?: 0, false)
-                i++
-            }
-        }
-        if (i > 0) {
-            HailData.saveApps()
+        val count = HailData.importBackupJson(str)
+        if (count > 0) {
             updateCurrentList()
+            HUI.showToast(getString(R.string.msg_imported, count.toString()))
+        } else {
+            val json = if (str.contains('[')) JSONArray(
+                str.substring(
+                    str.indexOf('[')..str.indexOf(']', str.indexOf('['))
+                )
+            )
+            else JSONArray().put(str)
+            var i = 0
+            for (index in 0 until json.length()) {
+                val pkg = json.getString(index)
+                if (HPackages.getApplicationInfoOrNull(pkg) != null && !HailData.isChecked(pkg)) {
+                    HailData.addCheckedApp(pkg, tag?.second ?: 0, false)
+                    i++
+                }
+            }
+            if (i > 0) {
+                HailData.saveApps()
+                updateCurrentList()
+            }
+            HUI.showToast(getString(R.string.msg_imported, i.toString()))
         }
-        HUI.showToast(getString(R.string.msg_imported, i.toString()))
     }
 
     private suspend fun importFrozenApp() = withContext(Dispatchers.IO) {

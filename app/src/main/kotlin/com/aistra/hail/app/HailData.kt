@@ -231,6 +231,144 @@ object HailData {
         })
     }
 
+    fun getOrCreateTagId(tagName: String): Int {
+        val trimmed = tagName.trim()
+        if (trimmed.isEmpty()) return 0
+        val existing = tags.find { it.first.equals(trimmed, ignoreCase = true) }
+        if (existing != null) return existing.second
+        val nextId = (tags.maxOfOrNull { it.second } ?: 0) + 1
+        tags.add(trimmed to nextId)
+        saveTags()
+        return nextId
+    }
+
+    fun addCheckedAppWithTags(
+        packageName: String,
+        tagNames: List<String> = emptyList(),
+        pinned: Boolean = false,
+        whitelisted: Boolean = false,
+        saveApps: Boolean = true
+    ) {
+        val tagIds = if (tagNames.isEmpty()) mutableListOf(0)
+        else tagNames.map { getOrCreateTagId(it) }.toMutableList()
+
+        val existing = checkedList.find { it.packageName == packageName }
+        if (existing != null) {
+            tagIds.forEach { if (it !in existing.tagIdList) existing.tagIdList.add(it) }
+            if (pinned) existing.pinned = true
+            if (whitelisted) existing.whitelisted = true
+        } else {
+            checkedList.add(AppInfo(packageName, pinned = pinned, whitelisted = whitelisted, tagIdList = tagIds))
+        }
+        if (saveApps) saveApps()
+    }
+
+    fun exportBackupJson(): String {
+        val root = JSONObject()
+        root.put("version", 1)
+        val appsArray = JSONArray()
+        checkedList.forEach { appInfo ->
+            val obj = JSONObject()
+            obj.put(KEY_PACKAGE, appInfo.packageName)
+            obj.put(KEY_PINNED, appInfo.pinned)
+            obj.put(KEY_WHITELISTED, appInfo.whitelisted)
+            val tagNames = JSONArray()
+            appInfo.tagIdList.forEach { tagId ->
+                tags.find { it.second == tagId }?.first?.let { tagNames.put(it) }
+            }
+            obj.put(KEY_TAGS, tagNames)
+            appsArray.put(obj)
+        }
+        root.put("apps", appsArray)
+        val tagsArray = JSONArray()
+        tags.forEach { tagsArray.put(it.first) }
+        root.put("tags", tagsArray)
+        return root.toString(2)
+    }
+
+    fun importBackupJson(jsonString: String): Int {
+        var count = 0
+        runCatching {
+            val trimmed = jsonString.trim()
+            if (trimmed.startsWith("{")) {
+                val root = JSONObject(trimmed)
+                if (root.has("tags")) {
+                    val tagsArr = root.getJSONArray("tags")
+                    for (i in 0 until tagsArr.length()) {
+                        getOrCreateTagId(tagsArr.getString(i))
+                    }
+                }
+                if (root.has("apps")) {
+                    val appsArr = root.getJSONArray("apps")
+                    for (i in 0 until appsArr.length()) {
+                        val item = appsArr.get(i)
+                        if (item is String) {
+                            addCheckedAppWithTags(item, saveApps = false)
+                            count++
+                        } else if (item is JSONObject) {
+                            val pkg = if (item.has(KEY_PACKAGE)) item.getString(KEY_PACKAGE)
+                            else item.optString("packageName")
+                            if (pkg.isNotEmpty()) {
+                                val tagList = mutableListOf<String>()
+                                if (item.has(KEY_TAGS)) {
+                                    val tArr = item.getJSONArray(KEY_TAGS)
+                                    for (j in 0 until tArr.length()) {
+                                        tagList.add(tArr.getString(j))
+                                    }
+                                } else if (item.has(KEY_TAG)) {
+                                    val singleTag = item.getString(KEY_TAG)
+                                    if (singleTag.isNotEmpty()) tagList.add(singleTag)
+                                }
+                                addCheckedAppWithTags(
+                                    pkg,
+                                    tagList,
+                                    pinned = item.optBoolean(KEY_PINNED),
+                                    whitelisted = item.optBoolean(KEY_WHITELISTED),
+                                    saveApps = false
+                                )
+                                count++
+                            }
+                        }
+                    }
+                }
+            } else if (trimmed.startsWith("[")) {
+                val array = JSONArray(trimmed)
+                for (i in 0 until array.length()) {
+                    val item = array.get(i)
+                    if (item is String) {
+                        addCheckedAppWithTags(item, saveApps = false)
+                        count++
+                    } else if (item is JSONObject) {
+                        val pkg = if (item.has(KEY_PACKAGE)) item.getString(KEY_PACKAGE)
+                        else item.optString("packageName")
+                        if (pkg.isNotEmpty()) {
+                            val tagList = mutableListOf<String>()
+                            if (item.has(KEY_TAGS)) {
+                                val tArr = item.getJSONArray(KEY_TAGS)
+                                for (j in 0 until tArr.length()) {
+                                    tagList.add(tArr.getString(j))
+                                }
+                            }
+                            addCheckedAppWithTags(
+                                pkg,
+                                tagList,
+                                pinned = item.optBoolean(KEY_PINNED),
+                                whitelisted = item.optBoolean(KEY_WHITELISTED),
+                                saveApps = false
+                            )
+                            count++
+                        }
+                    }
+                }
+            }
+            if (count > 0) {
+                saveApps()
+                saveTags()
+            }
+        }
+        return count
+    }
+
     fun changeAppsSort(sort: String) = sp.edit { putString(SORT_BY, sort) }
 
     fun changeAppsFilter(filter: String, enabled: Boolean) = sp.edit { putBoolean(filter, enabled) }

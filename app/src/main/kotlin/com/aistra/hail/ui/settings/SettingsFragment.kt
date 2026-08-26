@@ -59,6 +59,37 @@ import rikka.shizuku.Shizuku
 class SettingsFragment : MainFragment(), MenuProvider {
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
+    private val exportBackupLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            if (uri != null) {
+                runCatching {
+                    requireContext().contentResolver.openOutputStream(uri)?.use { os ->
+                        os.write(HailData.exportBackupJson().toByteArray(Charsets.UTF_8))
+                    }
+                    HUI.showToast(getString(R.string.msg_backup_success, HailData.checkedList.size.toString()))
+                }.onFailure {
+                    HLog.e(it)
+                    HUI.showToast(R.string.operation_failed, it.message ?: "Export error")
+                }
+            }
+        }
+
+    private val importBackupLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                runCatching {
+                    val content = requireContext().contentResolver.openInputStream(uri)?.use { ins ->
+                        ins.bufferedReader().readText()
+                    } ?: throw IllegalArgumentException("Cannot read file")
+                    val count = HailData.importBackupJson(content)
+                    HUI.showToast(getString(R.string.msg_restore_success, count.toString()))
+                }.onFailure {
+                    HLog.e(it)
+                    HUI.showToast(R.string.operation_failed, it.message ?: "Import error")
+                }
+            }
+        }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val menuHost = requireActivity() as MenuHost
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
@@ -261,6 +292,23 @@ class SettingsFragment : MainFragment(), MenuProvider {
                 title = { Text(text = stringResource(R.string.action_clear_dynamic_shortcuts)) },
                 icon = { Icon(imageVector = Icons.Outlined.CleaningServices, contentDescription = null) },
                 onClick = ::resetDynamicShortcuts
+            )
+            horizontalDivider()
+            preferenceCategory(
+                key = "backup_restore",
+                title = { Text(text = stringResource(R.string.title_backup_restore)) }
+            )
+            preference(
+                key = "export_backup",
+                title = { Text(text = stringResource(R.string.action_export_backup)) },
+                icon = { Icon(imageVector = Icons.Outlined.FileDownload, contentDescription = null) },
+                onClick = { exportBackupLauncher.launch("hail_backup.json") }
+            )
+            preference(
+                key = "import_backup",
+                title = { Text(text = stringResource(R.string.action_import_backup)) },
+                icon = { Icon(imageVector = Icons.Outlined.FileUpload, contentDescription = null) },
+                onClick = { importBackupLauncher.launch("application/json") }
             )
         }
     }

@@ -1,4 +1,4 @@
-English | [简体中文](README.zh_CN.md) | [日本語](README.ja.md)
+English | [简体中文](README.zh_CN.md) | [日本語](README.ja.md) | [한국어](README_KR.md)
 
 # Hail 雹
 
