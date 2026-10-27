@@ -64,10 +64,6 @@
     <string name="donate_alipay">Alipay</string>
     <string name="donate_wechat">WeChat Pay</string>
     <string name="donate_wechat_scan">Сканировать</string>
-    <string name="donate_bilibili">Bilibili</string>
-    <string name="donate_bilibili_msg">Подпишитесь на мой Bilibili.</string>
-    <string name="donate_bilibili_space">Пространство Bilibili</string>
-    <string name="donate_bilibili_cancel">Отменить</string>
     <string name="donate_liberapay">Liberapay</string>
     <string name="donate_paypal">PayPal</string>
     <string name="permission_denied">Разрешение отклонено</string>
@@ -157,5 +153,13 @@
     <string name="follow_system">Как в системе</string>
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Тёмная</string>
-    <string name="xposed_description">Авторазморзка приостановленных приложений изолированного профиля</string>
+    <string name="xposed_description">Дозволити ізольованим застосункам запускати призупинені застосунки</string>
+    <string name="working_mode_tag">Режим работы связанных приложений</string>
+    <string name="donate_kofi">Ko-fi</string>
+    <string name="state_running">Запущено</string>
+    <string name="state_disabled">Отключено</string>
+    <string name="state_hidden">Скрыто</string>
+    <string name="state_suspended">Приостановлено</string>
+    <string name="state_uninstalled">Дэинсталлировано</string>
+    <string name="mode_jailbreak_disable">Jailbreak — Отключить</string>
 </resources>
